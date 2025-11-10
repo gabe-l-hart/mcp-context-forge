@@ -11,6 +11,7 @@ It loads configuration from environment variables with sensible defaults.
 Environment variables:
 - APP_NAME: Gateway name (default: "MCP_Gateway")
 - HOST: Host to bind to (default: "127.0.0.1")
+- MCPG_HOME: Home directory for MCP Gateway (default: "~/.mcpgateway")
 - PORT: Port to listen on (default: 4444)
 - DATABASE_URL: SQLite database URL (default: "sqlite:///./mcp.db")
 - BASIC_AUTH_USER: Admin username (default: "admin")
@@ -153,7 +154,28 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: PositiveInt = Field(default=4444, ge=1, le=65535)
     docs_allow_basic_auth: bool = False  # Allow basic auth for docs
-    database_url: str = "sqlite:///./mcp.db"
+
+    # Home for local file persistence
+    mcpg_home: Path = Field(default_factory=lambda: Path.home() / ".mcpgateway")
+
+    @field_validator("mcpg_home")
+    @classmethod
+    def _validate_mcpg_home(cls, v: Path) -> Path:
+        """Validate MCP Gateway home directory."""
+        if v.is_file():
+            raise ValueError(f"Cannot use file as mcpg_home: {v}")
+        if not v.exists():
+            v.mkdir(parents=True)
+        return v
+
+    database_url: str | None = Field(default=None)  # Defaults to mcpg_home/mcp.db
+
+    @model_validator(mode="after")
+    def _set_database_url_default(self) -> Self:
+        """Set database URL to mcpg_home/mcp.db if not set."""
+        if self.database_url is None:
+            self.database_url = f"sqlite:///{self.mcpg_home}/mcp.db"
+        return self
 
     # Absolute paths resolved at import-time (still override-able via env vars)
     templates_dir: Path = Field(default_factory=lambda: Path(str(files("mcpgateway") / "templates")))
@@ -532,7 +554,7 @@ class Settings(BaseSettings):
 
     @field_validator("database_url")
     @classmethod
-    def validate_database_url(cls, v: str) -> str:
+    def validate_database_url(cls, v: str | None) -> str | None:
         """Validate database connection string security.
 
         Args:
@@ -541,6 +563,9 @@ class Settings(BaseSettings):
         Returns:
             str: The validated database URL.
         """
+        if v is None:
+            return v
+
         # Check for hardcoded passwords in non-SQLite databases
         if not v.startswith("sqlite"):
             if "password" in v and any(weak in v for weak in ["password", "123", "admin", "test"]):
