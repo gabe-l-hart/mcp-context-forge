@@ -276,9 +276,9 @@ def login(
         full_url = f"{gateway_url}/auth/login"
 
         response = requests.post(full_url, json={"email": email, "password": password})
-        if response.status >= 400:
+        if response.status_code >= 400:
             error_text = response.text
-            console.print(f"[red]Login failed ({response.status}): {error_text}[/red]")
+            console.print(f"[red]Login failed ({response.status_code}): {error_text}[/red]")
             raise typer.Exit(1)
 
         result = response.json()
