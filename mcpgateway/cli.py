@@ -31,7 +31,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 # Third-Party
 import requests
@@ -45,6 +45,7 @@ import uvicorn
 # First-Party
 from mcpgateway import __version__
 from mcpgateway.config import Settings, settings
+from mcpgateway.schemas import GatewayCreate
 
 # ---------------------------------------------------------------------------
 # Configuration defaults
@@ -225,6 +226,91 @@ def print_table(data: List[Dict], title: str, columns: List[str]) -> None:
         table.add_row(*row)
 
     console.print(table)
+
+
+def prompt_for_schema(schema_class: type, prefilled: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Interactively prompt user for fields based on a Pydantic schema.
+
+    Args:
+        schema_class: The Pydantic model class to use for prompting
+        prefilled: Optional dictionary of pre-filled values to skip prompting for
+
+    Returns:
+        Dictionary with the user's input data (includes prefilled values)
+    """
+    from typing import get_args, get_origin
+
+    console.print(f"\n[bold cyan]Creating {schema_class.__name__}[/bold cyan]")
+    console.print("[dim]Press Enter to skip optional fields[/dim]\n")
+
+    data = prefilled.copy() if prefilled else {}
+    model_fields = schema_class.model_fields
+
+    for field_name, field_info in model_fields.items():
+        # Skip if already provided
+        if field_name in data:
+            console.print(f"[dim]{field_name}: {data[field_name]} (pre-filled)[/dim]")
+            continue
+
+        # Skip internal fields
+        if field_name in ["model_config", "auth_value"]:
+            continue
+
+        # Get field metadata
+        annotation = field_info.annotation
+        description = field_info.description or field_name
+        is_required = field_info.is_required()
+        default = field_info.default if field_info.default is not None else None
+
+        # Get the actual type (handle Optional, Union, etc.)
+        origin = get_origin(annotation)
+        args = get_args(annotation)
+
+        # Determine the base type
+        if origin is Union:
+            # Handle Optional[T] which is Union[T, None]
+            actual_type = args[0] if len(args) > 0 and type(None) in args else annotation
+        else:
+            actual_type = annotation
+
+        # Create prompt text
+        prompt_text = f"{field_name}"
+        if description and description != field_name:
+            prompt_text += f" ({description})"
+        if default and default != "":
+            prompt_text += f" [default: {default}]"
+        if not is_required:
+            prompt_text += " [optional]"
+
+        # Handle different types
+        if issubclass(actual_type, bool) or str(actual_type) == "bool":
+            if is_required or typer.confirm(f"Include {field_name}?", default=False):
+                data[field_name] = typer.confirm(prompt_text, default=bool(default) if default else False)
+
+        elif issubclass(actual_type, int) or str(actual_type) == "int":
+            value = typer.prompt(prompt_text, type=int, default=default if default is not None else "", show_default=default is not None)
+            if value != "":
+                data[field_name] = value
+
+        elif issubclass(get_origin(actual_type), list) or str(actual_type).startswith("list"):
+            console.print(f"[yellow]{prompt_text}[/yellow]")
+            console.print("[dim]Enter comma-separated values, or press Enter to skip[/dim]")
+            value = typer.prompt("", default="", show_default=False)
+            if value:
+                # Parse comma-separated values
+                data[field_name] = [v.strip() for v in value.split(",") if v.strip()]
+
+        else:  # Treat as string
+            value = typer.prompt(
+                prompt_text,
+                type=str,
+                default=default if default is not None else "",
+                show_default=default is not None and default != "",
+            )
+            if value and value != "":
+                data[field_name] = value
+
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -864,16 +950,43 @@ def mcp_servers_get(
 
 @mcp_servers_app.command("create")
 def mcp_servers_create(
-    data_file: Path = typer.Argument(..., help="JSON file containing gateway data"),
+    data_file: Optional[Path] = typer.Argument(None, help="JSON file containing gateway data (interactive mode if not provided)"),
+    name: Optional[str] = typer.Option(None, "--name", help="Gateway name"),
+    url: Optional[str] = typer.Option(None, "--url", help="Gateway endpoint URL"),
+    description: Optional[str] = typer.Option(None, "--description", help="Gateway description"),
 ) -> None:
-    """Register a new MCP server peer."""
+    """Register a new MCP server peer.
+
+    Can be used in three ways:
+    1. Provide a JSON file: mcpgateway mcp-servers create data.json
+    2. Provide partial data via options: mcpgateway mcp-servers create --name myserver --url http://example.com
+    3. Use interactive mode: mcpgateway mcp-servers create
+    """
 
     try:
-        if not data_file.exists():
-            console.print(f"[red]File not found: {data_file}[/red]")
-            raise typer.Exit(1)
+        # Collect prefilled values from options
+        prefilled = {}
+        if name:
+            prefilled["name"] = name
+        if url:
+            prefilled["url"] = url
+        if description:
+            prefilled["description"] = description
 
-        data = json.loads(data_file.read_text())
+        # Determine data source
+        if data_file:
+            # File-based mode
+            if not data_file.exists():
+                console.print(f"[red]File not found: {data_file}[/red]")
+                raise typer.Exit(1)
+
+            data = json.loads(data_file.read_text())
+            # Merge prefilled values (command-line options override file)
+            data.update(prefilled)
+        else:
+            # Interactive mode
+            data = prompt_for_schema(GatewayCreate, prefilled=prefilled if prefilled else None)
+
         result = make_authenticated_request("POST", "/gateways", json_data=data)
 
         console.print("[green]✓ MCP server registered successfully![/green]")
