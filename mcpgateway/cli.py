@@ -45,7 +45,14 @@ import uvicorn
 # First-Party
 from mcpgateway import __version__
 from mcpgateway.config import Settings, settings
-from mcpgateway.schemas import GatewayCreate
+from mcpgateway.schemas import (
+    A2AAgentCreate,
+    GatewayCreate,
+    PromptCreate,
+    ResourceCreate,
+    ServerCreate,
+    ToolCreate,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration defaults
@@ -500,16 +507,36 @@ def tools_get(
 
 @tools_app.command("create")
 def tools_create(
-    data_file: Path = typer.Argument(..., help="JSON file containing tool data"),
+    data_file: Optional[Path] = typer.Argument(None, help="JSON file containing tool data (interactive mode if not provided)"),
+    name: Optional[str] = typer.Option(None, "--name", help="Tool name"),
+    description: Optional[str] = typer.Option(None, "--description", help="Tool description"),
 ) -> None:
-    """Create a new tool."""
+    """Create a new tool.
+
+    Can be used in three ways:
+    1. Provide a JSON file: mcpgateway tools create data.json
+    2. Provide partial data via options: mcpgateway tools create --name mytool --description "My tool"
+    3. Use interactive mode: mcpgateway tools create
+    """
 
     try:
-        if not data_file.exists():
-            console.print(f"[red]File not found: {data_file}[/red]")
-            raise typer.Exit(1)
+        # Collect prefilled values from options
+        prefilled = {}
+        if name:
+            prefilled["name"] = name
+        if description:
+            prefilled["description"] = description
 
-        data = json.loads(data_file.read_text())
+        # Determine data source
+        if data_file:
+            if not data_file.exists():
+                console.print(f"[red]File not found: {data_file}[/red]")
+                raise typer.Exit(1)
+            data = json.loads(data_file.read_text())
+            data.update(prefilled)
+        else:
+            data = prompt_for_schema(ToolCreate, prefilled=prefilled if prefilled else None)
+
         result = make_authenticated_request("POST", "/tools", json_data=data)
 
         console.print("[green]✓ Tool created successfully![/green]")
@@ -634,16 +661,39 @@ def resources_get(
 
 @resources_app.command("create")
 def resources_create(
-    data_file: Path = typer.Argument(..., help="JSON file containing resource data"),
+    data_file: Optional[Path] = typer.Argument(None, help="JSON file containing resource data (interactive mode if not provided)"),
+    name: Optional[str] = typer.Option(None, "--name", help="Resource name"),
+    uri: Optional[str] = typer.Option(None, "--uri", help="Resource URI"),
+    description: Optional[str] = typer.Option(None, "--description", help="Resource description"),
 ) -> None:
-    """Create a new resource."""
+    """Create a new resource.
+
+    Can be used in three ways:
+    1. Provide a JSON file: mcpgateway resources create data.json
+    2. Provide partial data via options: mcpgateway resources create --name myresource --uri file:///path
+    3. Use interactive mode: mcpgateway resources create
+    """
 
     try:
-        if not data_file.exists():
-            console.print(f"[red]File not found: {data_file}[/red]")
-            raise typer.Exit(1)
+        # Collect prefilled values from options
+        prefilled = {}
+        if name:
+            prefilled["name"] = name
+        if uri:
+            prefilled["uri"] = uri
+        if description:
+            prefilled["description"] = description
 
-        data = json.loads(data_file.read_text())
+        # Determine data source
+        if data_file:
+            if not data_file.exists():
+                console.print(f"[red]File not found: {data_file}[/red]")
+                raise typer.Exit(1)
+            data = json.loads(data_file.read_text())
+            data.update(prefilled)
+        else:
+            data = prompt_for_schema(ResourceCreate, prefilled=prefilled if prefilled else None)
+
         result = make_authenticated_request("POST", "/resources", json_data=data)
 
         console.print("[green]✓ Resource created successfully![/green]")
@@ -797,16 +847,36 @@ def prompts_get(
 
 @prompts_app.command("create")
 def prompts_create(
-    data_file: Path = typer.Argument(..., help="JSON file containing prompt data"),
+    data_file: Optional[Path] = typer.Argument(None, help="JSON file containing prompt data (interactive mode if not provided)"),
+    name: Optional[str] = typer.Option(None, "--name", help="Prompt name"),
+    description: Optional[str] = typer.Option(None, "--description", help="Prompt description"),
 ) -> None:
-    """Create a new prompt."""
+    """Create a new prompt.
+
+    Can be used in three ways:
+    1. Provide a JSON file: mcpgateway prompts create data.json
+    2. Provide partial data via options: mcpgateway prompts create --name myprompt --description "My prompt"
+    3. Use interactive mode: mcpgateway prompts create
+    """
 
     try:
-        if not data_file.exists():
-            console.print(f"[red]File not found: {data_file}[/red]")
-            raise typer.Exit(1)
+        # Collect prefilled values from options
+        prefilled = {}
+        if name:
+            prefilled["name"] = name
+        if description:
+            prefilled["description"] = description
 
-        data = json.loads(data_file.read_text())
+        # Determine data source
+        if data_file:
+            if not data_file.exists():
+                console.print(f"[red]File not found: {data_file}[/red]")
+                raise typer.Exit(1)
+            data = json.loads(data_file.read_text())
+            data.update(prefilled)
+        else:
+            data = prompt_for_schema(PromptCreate, prefilled=prefilled if prefilled else None)
+
         result = make_authenticated_request("POST", "/prompts", json_data=data)
 
         console.print("[green]✓ Prompt created successfully![/green]")
@@ -1106,16 +1176,36 @@ def virtual_servers_get(
 
 @virtual_servers_app.command("create")
 def virtual_servers_create(
-    data_file: Path = typer.Argument(..., help="JSON file containing server data"),
+    data_file: Optional[Path] = typer.Argument(None, help="JSON file containing server data (interactive mode if not provided)"),
+    name: Optional[str] = typer.Option(None, "--name", help="Virtual server name"),
+    description: Optional[str] = typer.Option(None, "--description", help="Virtual server description"),
 ) -> None:
-    """Create a new virtual server."""
+    """Create a new virtual server.
+
+    Can be used in three ways:
+    1. Provide a JSON file: mcpgateway virtual-servers create data.json
+    2. Provide partial data via options: mcpgateway virtual-servers create --name myserver --description "My server"
+    3. Use interactive mode: mcpgateway virtual-servers create
+    """
 
     try:
-        if not data_file.exists():
-            console.print(f"[red]File not found: {data_file}[/red]")
-            raise typer.Exit(1)
+        # Collect prefilled values from options
+        prefilled = {}
+        if name:
+            prefilled["name"] = name
+        if description:
+            prefilled["description"] = description
 
-        data = json.loads(data_file.read_text())
+        # Determine data source
+        if data_file:
+            if not data_file.exists():
+                console.print(f"[red]File not found: {data_file}[/red]")
+                raise typer.Exit(1)
+            data = json.loads(data_file.read_text())
+            data.update(prefilled)
+        else:
+            data = prompt_for_schema(ServerCreate, prefilled=prefilled if prefilled else None)
+
         result = make_authenticated_request("POST", "/servers", json_data=data)
 
         console.print("[green]✓ Virtual server created successfully![/green]")
@@ -1307,16 +1397,39 @@ def a2a_get(
 
 @a2a_app.command("create")
 def a2a_create(
-    data_file: Path = typer.Argument(..., help="JSON file containing agent data"),
+    data_file: Optional[Path] = typer.Argument(None, help="JSON file containing agent data (interactive mode if not provided)"),
+    name: Optional[str] = typer.Option(None, "--name", help="Agent name"),
+    url: Optional[str] = typer.Option(None, "--url", help="Agent endpoint URL"),
+    description: Optional[str] = typer.Option(None, "--description", help="Agent description"),
 ) -> None:
-    """Register a new A2A agent."""
+    """Register a new A2A agent.
+
+    Can be used in three ways:
+    1. Provide a JSON file: mcpgateway a2a create data.json
+    2. Provide partial data via options: mcpgateway a2a create --name myagent --url http://example.com
+    3. Use interactive mode: mcpgateway a2a create
+    """
 
     try:
-        if not data_file.exists():
-            console.print(f"[red]File not found: {data_file}[/red]")
-            raise typer.Exit(1)
+        # Collect prefilled values from options
+        prefilled = {}
+        if name:
+            prefilled["name"] = name
+        if url:
+            prefilled["url"] = url
+        if description:
+            prefilled["description"] = description
 
-        data = json.loads(data_file.read_text())
+        # Determine data source
+        if data_file:
+            if not data_file.exists():
+                console.print(f"[red]File not found: {data_file}[/red]")
+                raise typer.Exit(1)
+            data = json.loads(data_file.read_text())
+            data.update(prefilled)
+        else:
+            data = prompt_for_schema(A2AAgentCreate, prefilled=prefilled if prefilled else None)
+
         result = make_authenticated_request("POST", "/a2a", json_data=data)
 
         console.print("[green]✓ A2A agent registered successfully![/green]")
