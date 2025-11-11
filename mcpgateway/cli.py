@@ -290,16 +290,16 @@ def prompt_for_schema(schema_class: type, prefilled: Optional[Dict[str, Any]] = 
             prompt_text += " [optional]"
 
         # Handle different types
-        if issubclass(actual_type, bool) or str(actual_type) == "bool":
+        if actual_type is bool or str(actual_type) == "bool":
             if is_required or typer.confirm(f"Include {field_name}?", default=False):
                 data[field_name] = typer.confirm(prompt_text, default=bool(default) if default else False)
 
-        elif issubclass(actual_type, int) or str(actual_type) == "int":
+        elif actual_type is int or str(actual_type) == "int":
             value = typer.prompt(prompt_text, type=int, default=default if default is not None else "", show_default=default is not None)
             if value != "":
                 data[field_name] = value
 
-        elif issubclass(get_origin(actual_type), list) or str(actual_type).startswith("list"):
+        elif get_origin(actual_type) is list or str(actual_type).startswith("list"):
             console.print(f"[yellow]{prompt_text}[/yellow]")
             console.print("[dim]Enter comma-separated values, or press Enter to skip[/dim]")
             value = typer.prompt("", default="", show_default=False)
