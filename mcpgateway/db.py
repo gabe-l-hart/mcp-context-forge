@@ -23,13 +23,14 @@ Examples:
 
 # Standard
 from datetime import datetime, timedelta, timezone
-import logging
+from functools import lru_cache
 from typing import Any, cast, Dict, Generator, List, Optional, TYPE_CHECKING
+import logging
 import uuid
 
 # Third-Party
 import jsonschema
-from sqlalchemy import Boolean, Column, create_engine, DateTime, event, Float, ForeignKey, func, Index, Integer, JSON, make_url, select, String, Table, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Engine, create_engine, DateTime, event, Float, ForeignKey, func, Index, Integer, JSON, make_url, select, String, Table, Text, UniqueConstraint
 from sqlalchemy.event import listen
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -49,93 +50,13 @@ if TYPE_CHECKING:
     # First-Party
     from mcpgateway.common.models import ResourceContent
 
+
 # ResourceContent will be imported locally where needed to avoid circular imports
 # EmailUser models moved to this file to avoid circular imports
 
-# ---------------------------------------------------------------------------
-# 1. Parse the URL so we can inspect backend ("postgresql", "sqlite", ...)
-#    and the specific driver ("psycopg2", "asyncpg", empty string = default).
-# ---------------------------------------------------------------------------
-url = make_url(settings.database_url)
-backend = url.get_backend_name()  # e.g. 'postgresql', 'sqlite'
-driver = url.get_driver_name() or "default"
-
-# Start with an empty dict and add options only when the driver can accept
-# them; this prevents unexpected TypeError at connect time.
-connect_args: dict[str, object] = {}
 
 # ---------------------------------------------------------------------------
-# 2. PostgreSQL (synchronous psycopg2 only)
-#    The keep-alive parameters below are recognised exclusively by libpq /
-#    psycopg2 and let the kernel detect broken network links quickly.
-# ---------------------------------------------------------------------------
-if backend == "postgresql" and driver in ("psycopg2", "default", ""):
-    connect_args.update(
-        keepalives=1,  # enable TCP keep-alive probes
-        keepalives_idle=30,  # seconds of idleness before first probe
-        keepalives_interval=5,  # seconds between probes
-        keepalives_count=5,  # drop the link after N failed probes
-    )
-
-# ---------------------------------------------------------------------------
-# 3. SQLite (optional) - only one extra flag and it is *SQLite-specific*.
-# ---------------------------------------------------------------------------
-elif backend == "sqlite":
-    # Allow pooled connections to hop across threads.
-    connect_args["check_same_thread"] = False
-
-# 4. Other backends (MySQL, MSSQL, etc.) leave `connect_args` empty.
-
-# ---------------------------------------------------------------------------
-# 5. Build the Engine with a single, clean connect_args mapping.
-# ---------------------------------------------------------------------------
-if backend == "sqlite":
-    # SQLite supports connection pooling with proper configuration
-    # For SQLite, we use a smaller pool size since it's file-based
-    sqlite_pool_size = min(settings.db_pool_size, 50)  # Cap at 50 for SQLite
-    sqlite_max_overflow = min(settings.db_max_overflow, 20)  # Cap at 20 for SQLite
-
-    logger.info("Configuring SQLite with pool_size=%s, max_overflow=%s", sqlite_pool_size, sqlite_max_overflow)
-
-    engine = create_engine(
-        settings.database_url,
-        pool_pre_ping=True,  # quick liveness check per checkout
-        pool_size=sqlite_pool_size,
-        max_overflow=sqlite_max_overflow,
-        pool_timeout=settings.db_pool_timeout,
-        pool_recycle=settings.db_pool_recycle,
-        # SQLite specific optimizations
-        poolclass=QueuePool,  # Explicit pool class
-        connect_args=connect_args,
-        # Log pool events in debug mode
-        echo_pool=settings.log_level == "DEBUG",
-    )
-else:
-    # Other databases support full pooling configuration
-    engine = create_engine(
-        settings.database_url,
-        pool_pre_ping=True,  # quick liveness check per checkout
-        pool_size=settings.db_pool_size,
-        max_overflow=settings.db_max_overflow,
-        pool_timeout=settings.db_pool_timeout,
-        pool_recycle=settings.db_pool_recycle,
-        connect_args=connect_args,
-    )
-
-# Initialize SQLAlchemy instrumentation for observability
-if settings.observability_enabled:
-    try:
-        # First-Party
-        from mcpgateway.instrumentation import instrument_sqlalchemy
-
-        instrument_sqlalchemy(engine)
-        logger.info("SQLAlchemy instrumentation enabled for observability")
-    except ImportError:
-        logger.warning("Failed to import SQLAlchemy instrumentation")
-
-
-# ---------------------------------------------------------------------------
-# 6. Function to return UTC timestamp
+# Function to return UTC timestamp
 # ---------------------------------------------------------------------------
 def utc_now() -> datetime:
     """Return the current Coordinated Universal Time (UTC).
@@ -157,41 +78,140 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# Configure SQLite for better concurrency if using SQLite
-if backend == "sqlite":
+def _init_engine() -> Engine:
+    """Create an instance of the engine based on the current config"""
 
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, _connection_record):
-        """Set SQLite pragmas for better concurrency.
+    # ---------------------------------------------------------------------------
+    # 1. Parse the URL so we can inspect backend ("postgresql", "sqlite", ...)
+    #    and the specific driver ("psycopg2", "asyncpg", empty string = default).
+    # ---------------------------------------------------------------------------
+    url = make_url(settings.database_url)
+    backend = url.get_backend_name()  # e.g. 'postgresql', 'sqlite'
+    driver = url.get_driver_name() or "default"
 
-        This is critical for running with multiple gunicorn workers.
-        WAL mode allows multiple readers and a single writer concurrently.
+    # Start with an empty dict and add options only when the driver can accept
+    # them; this prevents unexpected TypeError at connect time.
+    connect_args: dict[str, object] = {}
 
-        Args:
-            dbapi_conn: The raw DBAPI connection.
-            _connection_record: A SQLAlchemy-specific object that maintains
-                information about the connection's context.
-        """
-        cursor = dbapi_conn.cursor()
-        # Enable WAL mode for better concurrency
-        cursor.execute("PRAGMA journal_mode=WAL")
-        # Set busy timeout to 30 seconds (30000 ms) to handle lock contention from observability
-        cursor.execute("PRAGMA busy_timeout=30000")
-        # Synchronous=NORMAL is safe with WAL mode and improves performance
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        # Increase cache size for better performance (negative value = KB)
-        cursor.execute("PRAGMA cache_size=-64000")  # 64MB cache
-        cursor.close()
+    # ---------------------------------------------------------------------------
+    # 2. PostgreSQL (synchronous psycopg2 only)
+    #    The keep-alive parameters below are recognised exclusively by libpq /
+    #    psycopg2 and let the kernel detect broken network links quickly.
+    # ---------------------------------------------------------------------------
+    if backend == "postgresql" and driver in ("psycopg2", "default", ""):
+        connect_args.update(
+            keepalives=1,  # enable TCP keep-alive probes
+            keepalives_idle=30,  # seconds of idleness before first probe
+            keepalives_interval=5,  # seconds between probes
+            keepalives_count=5,  # drop the link after N failed probes
+        )
+
+    # ---------------------------------------------------------------------------
+    # 3. SQLite (optional) - only one extra flag and it is *SQLite-specific*.
+    # ---------------------------------------------------------------------------
+    elif backend == "sqlite":
+        # Allow pooled connections to hop across threads.
+        connect_args["check_same_thread"] = False
+
+    # 4. Other backends (MySQL, MSSQL, etc.) leave `connect_args` empty.
+
+    # ---------------------------------------------------------------------------
+    # 5. Build the Engine with a single, clean connect_args mapping.
+    # ---------------------------------------------------------------------------
+    if backend == "sqlite":
+        # SQLite supports connection pooling with proper configuration
+        # For SQLite, we use a smaller pool size since it's file-based
+        sqlite_pool_size = min(settings.db_pool_size, 50)  # Cap at 50 for SQLite
+        sqlite_max_overflow = min(settings.db_max_overflow, 20)  # Cap at 20 for SQLite
+
+        logger.info("Configuring SQLite with pool_size=%s, max_overflow=%s", sqlite_pool_size, sqlite_max_overflow)
+
+        engine = create_engine(
+            settings.database_url,
+            pool_pre_ping=True,  # quick liveness check per checkout
+            pool_size=sqlite_pool_size,
+            max_overflow=sqlite_max_overflow,
+            pool_timeout=settings.db_pool_timeout,
+            pool_recycle=settings.db_pool_recycle,
+            # SQLite specific optimizations
+            poolclass=QueuePool,  # Explicit pool class
+            connect_args=connect_args,
+            # Log pool events in debug mode
+            echo_pool=settings.log_level == "DEBUG",
+        )
+    else:
+        # Other databases support full pooling configuration
+        engine = create_engine(
+            settings.database_url,
+            pool_pre_ping=True,  # quick liveness check per checkout
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_timeout=settings.db_pool_timeout,
+            pool_recycle=settings.db_pool_recycle,
+            connect_args=connect_args,
+        )
+
+    # Initialize SQLAlchemy instrumentation for observability
+    if settings.observability_enabled:
+        try:
+            # First-Party
+            from mcpgateway.instrumentation import instrument_sqlalchemy
+
+            instrument_sqlalchemy(engine)
+            logger.info("SQLAlchemy instrumentation enabled for observability")
+        except ImportError:
+            logger.warning("Failed to import SQLAlchemy instrumentation")
+
+    # Configure SQLite for better concurrency if using SQLite
+    if backend == "sqlite":
+
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, _connection_record):
+            """Set SQLite pragmas for better concurrency.
+
+            This is critical for running with multiple gunicorn workers.
+            WAL mode allows multiple readers and a single writer concurrently.
+
+            Args:
+                dbapi_conn: The raw DBAPI connection.
+                _connection_record: A SQLAlchemy-specific object that maintains
+                    information about the connection's context.
+            """
+            cursor = dbapi_conn.cursor()
+            # Enable WAL mode for better concurrency
+            cursor.execute("PRAGMA journal_mode=WAL")
+            # Set busy timeout to 30 seconds (30000 ms) to handle lock contention from observability
+            cursor.execute("PRAGMA busy_timeout=30000")
+            # Synchronous=NORMAL is safe with WAL mode and improves performance
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            # Increase cache size for better performance (negative value = KB)
+            cursor.execute("PRAGMA cache_size=-64000")  # 64MB cache
+            cursor.close()
+
+    return engine
 
 
-# Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@lru_cache
+def get_engine() -> Engine:
+    """Get the singleton engine instance"""
+    return _init_engine()
+
+
+@lru_cache
+def get_local_session_maker() -> sessionmaker:
+    """Get the singleton get_local_session instance"""
+    return sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+
+
+def get_local_session() -> Session:
+    """Get a local session object"""
+    return get_local_session_maker()()
 
 
 def refresh_slugs_on_startup():
     """Refresh slugs for all gateways and names of tools on startup."""
 
-    with cast(Any, SessionLocal)() as session:
+    with cast(Any, get_local_session)() as session:
         gateways = session.query(Gateway).all()
         updated = False
         for gateway in gateways:
@@ -3665,7 +3685,7 @@ def get_db() -> Generator[Session, Any, None]:
     Dependency to get database session.
 
     Yields:
-        SessionLocal: A SQLAlchemy database session.
+        get_local_session: A SQLAlchemy database session.
 
     Examples:
         >>> from mcpgateway.db import get_db
@@ -3677,7 +3697,7 @@ def get_db() -> Generator[Session, Any, None]:
         True
         >>> gen.close()
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:
@@ -3694,7 +3714,7 @@ def init_db():
     """
     try:
         # Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=get_engine())
     except SQLAlchemyError as e:
         raise Exception(f"Failed to initialize database: {str(e)}")
 
