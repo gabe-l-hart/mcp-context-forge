@@ -151,11 +151,11 @@ async def temp_db():
     Base.metadata.create_all(bind=engine)
 
     # Create session factory
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+    test_get_local_session = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
     # Override the get_db dependency
     def override_get_db():
-        db = TestSessionLocal()
+        db = test_get_local_session()
         try:
             yield db
         finally:
@@ -191,7 +191,7 @@ async def temp_db():
 
     # Create custom user context with real database session
     test_user_context = create_mock_user_context(email="testuser@example.com", full_name="Test User", is_admin=True)
-    test_user_context["db"] = TestSessionLocal()  # Use real database session from this fixture
+    test_user_context["db"] = test_get_local_session()  # Use real database session from this fixture
 
     # Create a simple mock function for get_current_user_with_permissions
     async def simple_mock_user_with_permissions():
@@ -970,7 +970,6 @@ class TestResourceAPIs:
             assert result["mime_type"] == "application/json"
         elif "mimeType" in result:
             assert result["mimeType"] == "application/json"
-
 
     async def test_create_resource_form_urlencoded(self, client: AsyncClient, mock_auth):
         """

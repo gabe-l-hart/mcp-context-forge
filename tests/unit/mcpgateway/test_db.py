@@ -314,7 +314,7 @@ def test_get_db_yields_and_closes(monkeypatch):
             self.closed = True
 
     dummy = DummySession()
-    monkeypatch.setattr(db, "SessionLocal", lambda: dummy)
+    monkeypatch.setattr(db, "get_local_session", lambda: dummy)
     gen = db.get_db()
     session = next(gen)
     assert session is dummy
@@ -331,7 +331,7 @@ def test_get_db_closes_on_exception(monkeypatch):
             self.closed = True
 
     dummy = DummySession()
-    monkeypatch.setattr(db, "SessionLocal", lambda: dummy)
+    monkeypatch.setattr(db, "get_local_session", lambda: dummy)
 
     gen = db.get_db()
     session = next(gen)

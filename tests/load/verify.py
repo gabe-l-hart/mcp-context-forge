@@ -35,8 +35,8 @@ def create_database_session():
         SQLAlchemy session
     """
     engine = create_engine(settings.database_url, echo=False)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal()
+    get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return get_local_session()
 
 
 def main():

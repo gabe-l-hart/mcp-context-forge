@@ -154,8 +154,8 @@ def create_database_session(config: Dict[str, Any]):
         echo=False,
     )
 
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal()
+    get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return get_local_session()
 
 
 def generate_data(config: Dict[str, Any], dry_run: bool = False) -> Dict[str, Any]:

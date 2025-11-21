@@ -60,10 +60,10 @@ def test_app():
     import mcpgateway.main as main_mod
 
     engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    test_get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     mp.setattr(db_mod, "engine", engine, raising=False)
-    mp.setattr(db_mod, "SessionLocal", TestingSessionLocal, raising=False)
-    mp.setattr(main_mod, "SessionLocal", TestingSessionLocal, raising=False)
+    mp.setattr(db_mod, "get_local_session", test_get_local_session, raising=False)
+    mp.setattr(main_mod, "get_local_session", test_get_local_session, raising=False)
     mp.setattr(main_mod, "engine", engine, raising=False)
 
     # Create schema
@@ -85,7 +85,7 @@ def test_app():
 
     async def mock_user_with_permissions():
         """Mock user context for RBAC."""
-        db_session = TestingSessionLocal()
+        db_session = test_get_local_session()
         return {
             "email": "test_user@example.com",
             "full_name": "Test User",
@@ -101,7 +101,7 @@ def test_app():
 
     def override_get_db():
         """Override database dependency to return our test database."""
-        db = TestingSessionLocal()
+        db = test_get_local_session()
         try:
             yield db
         finally:
@@ -247,11 +247,11 @@ class TestMetadataIntegration:
 
         # Override RBAC auth to return anonymous user context
         async def mock_anonymous_user():
-            # Need to import here to get the same SessionLocal the test is using
+            # Need to import here to get the same get_local_session the test is using
             # First-Party
             import mcpgateway.db as db_mod
 
-            db_session = db_mod.SessionLocal()
+            db_session = db_mod.get_local_session()
             return {
                 "email": "anonymous",
                 "full_name": "Anonymous User",
@@ -360,7 +360,7 @@ class TestMetadataIntegration:
 
         # Create test database session
         engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        test_get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         Base.metadata.create_all(bind=engine)
 
         # Create mock request
@@ -379,7 +379,7 @@ class TestMetadataIntegration:
 
         # Test service creation with metadata
         service = ToolService()
-        db = TestingSessionLocal()
+        db = test_get_local_session()
 
         try:
             tool_read = await service.register_tool(

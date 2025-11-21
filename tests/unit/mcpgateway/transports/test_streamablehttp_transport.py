@@ -140,7 +140,7 @@ async def test_event_store_replay_events_after_multiple():
 @pytest.mark.asyncio
 async def test_get_db_context_manager():
     """Test that get_db yields a db and closes it after use."""
-    with patch("mcpgateway.transports.streamablehttp_transport.SessionLocal") as mock_session_local:
+    with patch("mcpgateway.transports.streamablehttp_transport.get_local_session") as mock_session_local:
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
@@ -227,10 +227,7 @@ async def test_call_tool_with_structured_content(monkeypatch):
     # Simulate structured content being present
     mock_structured = {"status": "ok", "data": {"value": 42}}
     mock_result.structured_content = mock_structured
-    mock_result.model_dump = lambda by_alias=True: {
-        "content": [{"type": "text", "text": '{"result": "success"}'}],
-        "structuredContent": mock_structured
-    }
+    mock_result.model_dump = lambda by_alias=True: {"content": [{"type": "text", "text": '{"result": "success"}'}], "structuredContent": mock_structured}
 
     @asynccontextmanager
     async def fake_get_db():

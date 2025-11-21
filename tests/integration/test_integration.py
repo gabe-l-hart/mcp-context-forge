@@ -72,10 +72,10 @@ def test_client() -> TestClient:
     import mcpgateway.main as main_mod
 
     engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    test_get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     mp.setattr(db_mod, "engine", engine, raising=False)
-    mp.setattr(db_mod, "SessionLocal", TestSessionLocal, raising=False)
-    mp.setattr(main_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(db_mod, "get_local_session", test_get_local_session, raising=False)
+    mp.setattr(main_mod, "get_local_session", test_get_local_session, raising=False)
     mp.setattr(main_mod, "engine", engine, raising=False)
 
     # Create schema
@@ -103,7 +103,7 @@ def test_client() -> TestClient:
 
     async def mock_user_with_permissions():
         """Mock user context for RBAC."""
-        db_session = TestSessionLocal()
+        db_session = test_get_local_session()
         return {
             "email": "integration-test-user@example.com",
             "full_name": "Integration Test User",
@@ -119,7 +119,7 @@ def test_client() -> TestClient:
 
     def override_get_db():
         """Override database dependency to return our test database."""
-        db = TestSessionLocal()
+        db = test_get_local_session()
         try:
             yield db
         finally:

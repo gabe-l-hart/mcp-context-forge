@@ -60,10 +60,10 @@ def test_client() -> TestClient:
     import mcpgateway.main as main_mod
 
     engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Testget_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     mp.setattr(db_mod, "engine", engine, raising=False)
-    mp.setattr(db_mod, "SessionLocal", TestSessionLocal, raising=False)
-    mp.setattr(main_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(db_mod, "get_local_session", Testget_local_session, raising=False)
+    mp.setattr(main_mod, "get_local_session", Testget_local_session, raising=False)
     mp.setattr(main_mod, "engine", engine, raising=False)
 
     # Create schema

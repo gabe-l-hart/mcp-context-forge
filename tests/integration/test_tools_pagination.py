@@ -12,7 +12,6 @@ with correct metadata, links, and team-based access control.
 # Standard
 import os
 import tempfile
-from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 # Third-Party
@@ -51,10 +50,10 @@ def test_db_and_client():
     import mcpgateway.main as main_mod
 
     engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    test_get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     mp.setattr(db_mod, "engine", engine, raising=False)
-    mp.setattr(db_mod, "SessionLocal", TestSessionLocal, raising=False)
-    mp.setattr(main_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(db_mod, "get_local_session", test_get_local_session, raising=False)
+    mp.setattr(main_mod, "get_local_session", test_get_local_session, raising=False)
     mp.setattr(main_mod, "engine", engine, raising=False)
 
     # Create schema
@@ -62,7 +61,7 @@ def test_db_and_client():
 
     def override_get_db():
         """Override database dependency."""
-        db = TestSessionLocal()
+        db = test_get_local_session()
         try:
             yield db
         finally:
@@ -73,7 +72,7 @@ def test_db_and_client():
     # Patch RBAC decorators to bypass permission checks
     rbac_originals = patch_rbac_decorators()
 
-    yield TestSessionLocal, engine
+    yield test_get_local_session, engine
 
     # Cleanup
     app.dependency_overrides.pop(rbac_get_db, None)
@@ -84,7 +83,7 @@ def test_db_and_client():
     os.unlink(path)
 
 
-def create_user_context(email: str, is_admin: bool = False, TestSessionLocal=None):
+def create_user_context(email: str, is_admin: bool = False, test_get_local_session=None):
     """Create a mock user context for testing."""
 
     async def mock_user_with_permissions():
@@ -95,7 +94,7 @@ def create_user_context(email: str, is_admin: bool = False, TestSessionLocal=Non
             "is_admin": is_admin,
             "ip_address": "127.0.0.1",
             "user_agent": "test-client",
-            "db": TestSessionLocal() if TestSessionLocal else None,
+            "db": test_get_local_session() if test_get_local_session else None,
         }
 
     return mock_user_with_permissions
@@ -106,8 +105,8 @@ class TestToolsPagination:
 
     def test_tools_pagination_first_page(self, test_db_and_client):
         """Test pagination returns correct first page with metadata."""
-        TestSessionLocal, _ = test_db_and_client
-        db = TestSessionLocal()
+        test_get_local_session, _ = test_db_and_client
+        db = test_get_local_session()
 
         # Create test tools
         for i in range(25):
@@ -132,7 +131,7 @@ class TestToolsPagination:
 
         app.dependency_overrides[require_auth] = lambda: "admin@example.com"
         app.dependency_overrides[get_current_user] = lambda: mock_user
-        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", TestSessionLocal=TestSessionLocal)
+        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", test_get_local_session=test_get_local_session)
 
         client = TestClient(app)
 
@@ -172,8 +171,8 @@ class TestToolsPagination:
 
     def test_tools_pagination_middle_page(self, test_db_and_client):
         """Test pagination returns correct middle page."""
-        TestSessionLocal, _ = test_db_and_client
-        db = TestSessionLocal()
+        test_get_local_session, _ = test_db_and_client
+        db = test_get_local_session()
 
         # Create test tools
         for i in range(50):
@@ -198,7 +197,7 @@ class TestToolsPagination:
 
         app.dependency_overrides[require_auth] = lambda: "admin@example.com"
         app.dependency_overrides[get_current_user] = lambda: mock_user
-        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", TestSessionLocal=TestSessionLocal)
+        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", test_get_local_session=test_get_local_session)
 
         client = TestClient(app)
 
@@ -223,8 +222,8 @@ class TestToolsPagination:
 
     def test_tools_pagination_last_page(self, test_db_and_client):
         """Test pagination returns correct last page."""
-        TestSessionLocal, _ = test_db_and_client
-        db = TestSessionLocal()
+        test_get_local_session, _ = test_db_and_client
+        db = test_get_local_session()
 
         # Create 25 tools (3 pages of 10, last page has 5)
         for i in range(25):
@@ -249,7 +248,7 @@ class TestToolsPagination:
 
         app.dependency_overrides[require_auth] = lambda: "admin@example.com"
         app.dependency_overrides[get_current_user] = lambda: mock_user
-        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", TestSessionLocal=TestSessionLocal)
+        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", test_get_local_session=test_get_local_session)
 
         client = TestClient(app)
 
@@ -277,7 +276,7 @@ class TestToolsPagination:
 
     def test_tools_pagination_empty_result(self, test_db_and_client):
         """Test pagination with no tools returns empty result."""
-        TestSessionLocal, _ = test_db_and_client
+        test_get_local_session, _ = test_db_and_client
 
         # Set up user context (no tools created)
         mock_user = MagicMock()
@@ -285,7 +284,7 @@ class TestToolsPagination:
 
         app.dependency_overrides[require_auth] = lambda: "admin@example.com"
         app.dependency_overrides[get_current_user] = lambda: mock_user
-        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", TestSessionLocal=TestSessionLocal)
+        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", test_get_local_session=test_get_local_session)
 
         client = TestClient(app)
 
@@ -308,8 +307,8 @@ class TestToolsPagination:
 
     def test_tools_pagination_with_inactive_filter(self, test_db_and_client):
         """Test pagination with include_inactive filter."""
-        TestSessionLocal, _ = test_db_and_client
-        db = TestSessionLocal()
+        test_get_local_session, _ = test_db_and_client
+        db = test_get_local_session()
 
         # Create tools (mix of active and inactive)
         for i in range(20):
@@ -334,7 +333,7 @@ class TestToolsPagination:
 
         app.dependency_overrides[require_auth] = lambda: "admin@example.com"
         app.dependency_overrides[get_current_user] = lambda: mock_user
-        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", TestSessionLocal=TestSessionLocal)
+        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", test_get_local_session=test_get_local_session)
 
         client = TestClient(app)
 
@@ -355,8 +354,8 @@ class TestToolsPagination:
 
     def test_tools_pagination_page_size_limits(self, test_db_and_client):
         """Test pagination enforces page size limits."""
-        TestSessionLocal, _ = test_db_and_client
-        db = TestSessionLocal()
+        test_get_local_session, _ = test_db_and_client
+        db = test_get_local_session()
 
         # Create test tools
         for i in range(10):
@@ -381,7 +380,7 @@ class TestToolsPagination:
 
         app.dependency_overrides[require_auth] = lambda: "admin@example.com"
         app.dependency_overrides[get_current_user] = lambda: mock_user
-        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", TestSessionLocal=TestSessionLocal)
+        app.dependency_overrides[get_current_user_with_permissions] = create_user_context("admin@example.com", test_get_local_session=test_get_local_session)
 
         client = TestClient(app)
 

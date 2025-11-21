@@ -33,7 +33,7 @@ class TestGetDb:
 
     def test_get_db_yields_session(self):
         """Test that get_db yields a database session."""
-        with patch("mcpgateway.auth.SessionLocal") as mock_session_local:
+        with patch("mcpgateway.auth.get_local_session") as mock_session_local:
             mock_session = MagicMock(spec=Session)
             mock_session_local.return_value = mock_session
 
@@ -44,7 +44,7 @@ class TestGetDb:
 
     def test_get_db_closes_session_on_exit(self):
         """Test that get_db closes the session after use."""
-        with patch("mcpgateway.auth.SessionLocal") as mock_session_local:
+        with patch("mcpgateway.auth.get_local_session") as mock_session_local:
             mock_session = MagicMock(spec=Session)
             mock_session_local.return_value = mock_session
 
@@ -61,7 +61,7 @@ class TestGetDb:
 
     def test_get_db_closes_session_on_exception(self):
         """Test that get_db closes the session even if an exception occurs."""
-        with patch("mcpgateway.auth.SessionLocal") as mock_session_local:
+        with patch("mcpgateway.auth.get_local_session") as mock_session_local:
             mock_session = MagicMock(spec=Session)
             mock_session_local.return_value = mock_session
 

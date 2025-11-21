@@ -539,14 +539,14 @@ import sys
 import os
 sys.path.insert(0, "/app")
 
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway import models
 
 def load_test_data():
     with open("/app/seed_data.json", "r") as f:
         data = json.load(f)
 
-    db = SessionLocal()
+    db = get_local_session()
     try:
         # Load tools
         for tool_data in data.get("tools", []):

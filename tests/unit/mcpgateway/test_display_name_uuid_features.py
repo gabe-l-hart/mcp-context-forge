@@ -29,8 +29,8 @@ def db_session():
     """Create a test database session."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = SessionLocal()
+    get_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = get_local_session()
     try:
         yield session
     finally:

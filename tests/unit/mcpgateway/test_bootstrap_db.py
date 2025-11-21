@@ -110,7 +110,7 @@ class TestBootstrapAdminUser:
         mock_email_auth_service.get_user_by_email.return_value = mock_admin_user
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.services.email_auth_service.EmailAuthService", return_value=mock_email_auth_service):
                     with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                         await bootstrap_admin_user()
@@ -127,7 +127,7 @@ class TestBootstrapAdminUser:
 
         with (
             patch("mcpgateway.bootstrap_db.settings", mock_settings),
-            patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session),
+            patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session),
             patch("mcpgateway.services.email_auth_service.EmailAuthService", return_value=mock_email_auth_service),
             patch("mcpgateway.db.utc_now") as mock_utc_now,
             patch("mcpgateway.bootstrap_db.logger") as mock_logger,
@@ -153,7 +153,7 @@ class TestBootstrapAdminUser:
         mock_email_auth_service.create_user.return_value = mock_admin_user
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.services.email_auth_service.EmailAuthService", return_value=mock_email_auth_service):
                     with patch("mcpgateway.db.utc_now", return_value="2024-01-01T00:00:00Z"):
                         with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
@@ -167,7 +167,7 @@ class TestBootstrapAdminUser:
         mock_email_auth_service.get_user_by_email.side_effect = Exception("Database error")
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.services.email_auth_service.EmailAuthService", return_value=mock_email_auth_service):
                     with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                         await bootstrap_admin_user()
@@ -300,7 +300,7 @@ class TestNormalizeTeamVisibility:
         mock_query.all.return_value = []
         mock_db_session.query.return_value = mock_query
 
-        with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+        with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
             with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                 result = normalize_team_visibility()
 
@@ -322,7 +322,7 @@ class TestNormalizeTeamVisibility:
         mock_query.all.return_value = [mock_team1, mock_team2]
         mock_db_session.query.return_value = mock_query
 
-        with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+        with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
             with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                 result = normalize_team_visibility()
 
@@ -336,7 +336,7 @@ class TestNormalizeTeamVisibility:
         """Test exception handling during normalization."""
         mock_db_session.query.side_effect = Exception("Database error")
 
-        with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+        with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
             with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                 result = normalize_team_visibility()
 
@@ -367,7 +367,7 @@ class TestBootstrapResourceAssignments:
         mock_db_session.query.return_value = mock_query
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                     await bootstrap_resource_assignments()
 
@@ -384,7 +384,7 @@ class TestBootstrapResourceAssignments:
         mock_db_session.query.return_value = mock_query
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                     await bootstrap_resource_assignments()
 
@@ -425,7 +425,7 @@ class TestBootstrapResourceAssignments:
         mock_db_session.query.side_effect = mock_query_handler
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.db.EmailUser", Mock(__name__="EmailUser")):
                     with patch("mcpgateway.db.Server", Mock(__name__="Server")):
                         with patch("mcpgateway.db.Tool", Mock(__name__="Tool")):
@@ -467,7 +467,7 @@ class TestBootstrapResourceAssignments:
         mock_db_session.query.side_effect = mock_query_handler
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.db.EmailUser", Mock(__name__="EmailUser")):
                     with patch("mcpgateway.db.Server", Mock(__name__="Server")):
                         with patch("mcpgateway.db.Tool", Mock(__name__="Tool")):
@@ -486,7 +486,7 @@ class TestBootstrapResourceAssignments:
         mock_db_session.query.side_effect = Exception("Database error")
 
         with patch("mcpgateway.bootstrap_db.settings", mock_settings):
-            with patch("mcpgateway.bootstrap_db.SessionLocal", return_value=mock_db_session):
+            with patch("mcpgateway.bootstrap_db.get_local_session", return_value=mock_db_session):
                 with patch("mcpgateway.bootstrap_db.logger") as mock_logger:
                     await bootstrap_resource_assignments()
 

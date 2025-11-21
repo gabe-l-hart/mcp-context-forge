@@ -48,8 +48,8 @@ def test_engine(test_db_url):
 @pytest.fixture
 def test_db(test_engine):
     """Create a fresh database session for a test."""
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-    db = TestingSessionLocal()
+    Testingget_local_session = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    db = Testingget_local_session()
     try:
         yield db
     finally:
@@ -88,15 +88,15 @@ def app():
     import mcpgateway.db as db_mod
 
     engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Testget_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     mp.setattr(db_mod, "engine", engine, raising=False)
-    mp.setattr(db_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(db_mod, "get_local_session", Testget_local_session, raising=False)
 
     # 4) patch the already‑imported main module **without reloading**
     # First-Party
     import mcpgateway.main as main_mod
 
-    mp.setattr(main_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(main_mod, "get_local_session", Testget_local_session, raising=False)
     # (patch engine too if your code references it)
     mp.setattr(main_mod, "engine", engine, raising=False)
 
@@ -153,22 +153,22 @@ def app_with_temp_db():
     import mcpgateway.db as db_mod
 
     engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Testget_local_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     mp.setattr(db_mod, "engine", engine, raising=False)
-    mp.setattr(db_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(db_mod, "get_local_session", Testget_local_session, raising=False)
 
     # 4) patch the already‑imported main module **without reloading**
     # First-Party
     import mcpgateway.main as main_mod
 
-    mp.setattr(main_mod, "SessionLocal", TestSessionLocal, raising=False)
+    mp.setattr(main_mod, "get_local_session", Testget_local_session, raising=False)
     # (patch engine too if your code references it)
     mp.setattr(main_mod, "engine", engine, raising=False)
 
     # 4) create schema
     db_mod.Base.metadata.create_all(bind=engine)
 
-    # 5) reload main so routers, deps pick up new SessionLocal
+    # 5) reload main so routers, deps pick up new get_local_session
     # if "mcpgateway.main" in sys.modules:
     #     import importlib
 

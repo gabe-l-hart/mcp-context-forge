@@ -669,8 +669,8 @@ def db_session():
     Base.metadata.create_all(engine)
 
     # Create session
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+    get_local_session = sessionmaker(bind=engine)
+    session = get_local_session()
 
     yield session
 

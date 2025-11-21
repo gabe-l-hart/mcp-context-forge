@@ -31,13 +31,13 @@ tests:
       1. Check expected admin email from configuration:
          python3 -c "from mcpgateway.config import settings; print(f'Expected admin: {settings.platform_admin_email}')"
       2. Check actual admin user in database:
-         python3 -c "from mcpgateway.db import SessionLocal, EmailUser; db=SessionLocal(); admin=db.query(EmailUser).filter(EmailUser.is_admin==True).first(); print(f'Found admin: {admin.email if admin else None}, is_admin: {admin.is_admin if admin else False}'); db.close()"
+         python3 -c "from mcpgateway.db import get_local_session, EmailUser; db=get_local_session(); admin=db.query(EmailUser).filter(EmailUser.is_admin==True).first(); print(f'Found admin: {admin.email if admin else None}, is_admin: {admin.is_admin if admin else False}'); db.close()"
       3. Compare expected vs actual results
       4. Record both outputs exactly
     expected: "Expected admin email matches found admin email, is_admin=True"
     sqlite_support: true
     postgresql_support: true
-    validation_command: 'python3 -c "from mcpgateway.config import settings; from mcpgateway.db import SessionLocal, EmailUser; db=SessionLocal(); admin=db.query(EmailUser).filter(EmailUser.email==settings.platform_admin_email, EmailUser.is_admin==True).first(); result = \"PASS\" if admin else \"FAIL\"; print(f\"Result: {result}\"); db.close()"'
+    validation_command: 'python3 -c "from mcpgateway.config import settings; from mcpgateway.db import get_local_session, EmailUser; db=get_local_session(); admin=db.query(EmailUser).filter(EmailUser.email==settings.platform_admin_email, EmailUser.is_admin==True).first(); result = \"PASS\" if admin else \"FAIL\"; print(f\"Result: {result}\"); db.close()"'
 
   - test_id: "MIG-002"
     priority: "CRITICAL"
@@ -86,7 +86,7 @@ tests:
       5. Verify 'Visibility' field has value (private/team/public)
       6. Repeat this check for Resources and Prompts sections
       7. Run database verification:
-         python3 -c "from mcpgateway.db import SessionLocal, Tool, Resource; db=SessionLocal(); tool_unassigned=db.query(Tool).filter(Tool.team_id==None).count(); resource_unassigned=db.query(Resource).filter(Resource.team_id==None).count(); print(f'Unassigned tools: {tool_unassigned}, resources: {resource_unassigned}'); db.close()"
+         python3 -c "from mcpgateway.db import get_local_session, Tool, Resource; db=get_local_session(); tool_unassigned=db.query(Tool).filter(Tool.team_id==None).count(); resource_unassigned=db.query(Resource).filter(Resource.team_id==None).count(); print(f'Unassigned tools: {tool_unassigned}, resources: {resource_unassigned}'); db.close()"
     expected: "All resources show Team/Owner/Visibility fields, database query shows 0 unassigned"
     sqlite_support: true
     postgresql_support: true
@@ -133,7 +133,7 @@ tests:
          PostgreSQL: psql -d mcp -c '\dt' | grep email
       2. Verify required tables: email_users, email_teams, email_team_members, roles, user_roles
       3. Check table row counts:
-         python3 -c "from mcpgateway.db import SessionLocal, EmailUser, EmailTeam; db=SessionLocal(); users=db.query(EmailUser).count(); teams=db.query(EmailTeam).count(); print(f'Users: {users}, Teams: {teams}'); db.close()"
+         python3 -c "from mcpgateway.db import get_local_session, EmailUser, EmailTeam; db=get_local_session(); users=db.query(EmailUser).count(); teams=db.query(EmailTeam).count(); print(f'Users: {users}, Teams: {teams}'); db.close()"
       4. Test foreign key relationships work properly
     expected: "All multitenancy tables exist with proper data and working relationships"
     sqlite_support: true
