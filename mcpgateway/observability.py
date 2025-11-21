@@ -125,7 +125,7 @@ logger = logging.getLogger(__name__)
 _TRACER = None
 
 
-def init_telemetry() -> Optional[Any]:
+def init_telemetry() -> None:
     """Initialize OpenTelemetry with configurable backend.
 
     Supports multiple backends via environment variables:
@@ -134,9 +134,6 @@ def init_telemetry() -> Optional[Any]:
     - OTEL_EXPORTER_JAEGER_ENDPOINT: Jaeger endpoint (for jaeger exporter)
     - OTEL_EXPORTER_ZIPKIN_ENDPOINT: Zipkin endpoint (for zipkin exporter)
     - OTEL_ENABLE_OBSERVABILITY: Set to 'false' to disable completely
-
-    Returns:
-        The initialized tracer instance or None if disabled.
     """
     # pylint: disable=global-statement
     global _TRACER
@@ -298,8 +295,6 @@ def init_telemetry() -> Optional[Any]:
         elif exporter_type == "zipkin":
             logger.info(f"   Endpoint: {os.getenv('OTEL_EXPORTER_ZIPKIN_ENDPOINT', 'default')}")
 
-        return _TRACER
-
     except Exception as e:
         logger.error(f"Failed to initialize OpenTelemetry: {e}")
         return None
@@ -459,7 +454,3 @@ def create_span(name: str, attributes: Optional[Dict[str, Any]] = None) -> Any:
         return SpanWithAttributes(span_context, attributes)
 
     return span_context
-
-
-# Initialize on module import
-_TRACER = init_telemetry()
