@@ -145,11 +145,11 @@ ENV_TIMEOUT: Final[str] = "DB_CONNECT_TIMEOUT"
 # ---------------------------------------------------------------------------
 # Defaults - overridable via env-vars or CLI flags
 # ---------------------------------------------------------------------------
-DEFAULT_DB_URL: Final[str] = os.getenv(ENV_DB_URL, settings.database_url)
+DEFAULT_DB_URL: Final[Optional[str]] = os.getenv(ENV_DB_URL)
 DEFAULT_MAX_TRIES: Final[int] = int(os.getenv(ENV_MAX_TRIES, "30"))
 DEFAULT_INTERVAL: Final[float] = float(os.getenv(ENV_INTERVAL, "2"))
 DEFAULT_TIMEOUT: Final[int] = int(os.getenv(ENV_TIMEOUT, "2"))
-DEFAULT_LOG_LEVEL: Final[str] = os.getenv("LOG_LEVEL", settings.log_level).upper()
+DEFAULT_LOG_LEVEL: Final[str] = os.getenv("LOG_LEVEL", "").upper()
 
 # ---------------------------------------------------------------------------
 # Helpers - sanitising / formatting util functions
@@ -199,7 +199,7 @@ def _format_target(url: URL) -> str:
 
 def wait_for_db_ready(
     *,
-    database_url: str = DEFAULT_DB_URL,
+    database_url: Optional[str] = None,
     max_tries: int = DEFAULT_MAX_TRIES,
     interval: float = DEFAULT_INTERVAL,
     timeout: int = DEFAULT_TIMEOUT,
@@ -253,11 +253,14 @@ def wait_for_db_ready(
     ...     print('error')
     error
     """
+    # Override sequence arg -> env -> settings
+    database_url: str = database_url or DEFAULT_DB_URL or settings.database_url
 
     log = logger or logging.getLogger("db_isready")
+    default_log_level = DEFAULT_LOG_LEVEL or settings.log_level
     if not log.handlers:  # basicConfig **once** - respects *log.setLevel* later
         logging.basicConfig(
-            level=getattr(logging, DEFAULT_LOG_LEVEL, logging.INFO),
+            level=getattr(logging, default_log_level, logging.INFO),
             format="%(asctime)s [%(levelname)s] %(message)s",
             datefmt="%Y-%m-%dT%H:%M:%S",
         )
@@ -385,7 +388,7 @@ def _parse_cli() -> argparse.Namespace:
     parser.add_argument("--max-tries", type=int, default=DEFAULT_MAX_TRIES, help="Maximum connection attempts")
     parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL, help="Delay between attempts in seconds")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="Per-attempt connect timeout in seconds")
-    parser.add_argument("--log-level", default=DEFAULT_LOG_LEVEL, help="Logging level (DEBUG, INFO, ...)")
+    parser.add_argument("--log-level", default=DEFAULT_LOG_LEVEL or settings.log_level, help="Logging level (DEBUG, INFO, ...)")
     return parser.parse_args()
 
 
