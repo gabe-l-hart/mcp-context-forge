@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 # First-Party
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway.schemas import (
     ObservabilitySpanRead,
     ObservabilityTraceRead,
@@ -34,7 +34,7 @@ def get_db():
     Yields:
         Session: SQLAlchemy database session
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:

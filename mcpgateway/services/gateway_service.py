@@ -76,7 +76,7 @@ from mcpgateway.db import Gateway as DbGateway
 from mcpgateway.db import get_db
 from mcpgateway.db import Prompt as DbPrompt
 from mcpgateway.db import Resource as DbResource
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway.db import Tool as DbTool
 from mcpgateway.observability import create_span
 from mcpgateway.schemas import GatewayCreate, GatewayRead, GatewayUpdate, PromptCreate, ResourceCreate, ToolCreate
@@ -2072,7 +2072,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
 
         if count >= GW_FAILURE_THRESHOLD:
             logger.error(f"Gateway {gateway.name} failed {GW_FAILURE_THRESHOLD} times. Deactivating...")
-            with cast(Any, SessionLocal)() as db:
+            with cast(Any, get_local_session)() as db:
                 await self.toggle_gateway_status(db, gateway.id, activate=True, reachable=False, only_update_reachable=True)
                 self._gateway_failure_counts[gateway.id] = 0  # Reset after deactivation
 
@@ -2521,7 +2521,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
         Examples:
             >>> from unittest.mock import patch, MagicMock
             >>> service = GatewayService()
-            >>> with patch('mcpgateway.services.gateway_service.SessionLocal') as mock_session:
+            >>> with patch('mcpgateway.services.gateway_service.get_local_session') as mock_session:
             ...     mock_db = MagicMock()
             ...     mock_session.return_value.__enter__.return_value = mock_db
             ...     mock_db.execute.return_value.scalars.return_value.all.return_value = []
@@ -2530,7 +2530,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
             True
 
             >>> # Test include_inactive parameter handling
-            >>> with patch('mcpgateway.services.gateway_service.SessionLocal') as mock_session:
+            >>> with patch('mcpgateway.services.gateway_service.get_local_session') as mock_session:
             ...     mock_db = MagicMock()
             ...     mock_session.return_value.__enter__.return_value = mock_db
             ...     mock_db.execute.return_value.scalars.return_value.all.return_value = []
@@ -2538,7 +2538,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
             ...     isinstance(result_active_only, list)
             True
         """
-        with cast(Any, SessionLocal)() as db:
+        with cast(Any, get_local_session)() as db:
             if include_inactive:
                 return db.execute(select(DbGateway)).scalars().all()
             # Only return active gateways

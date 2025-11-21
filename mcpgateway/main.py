@@ -67,7 +67,7 @@ from mcpgateway.common.models import InitializeResult
 from mcpgateway.common.models import JSONRPCError as PydanticJSONRPCError
 from mcpgateway.common.models import ListResourceTemplatesResult, LogLevel, Root
 from mcpgateway.config import settings
-from mcpgateway.db import refresh_slugs_on_startup, SessionLocal
+from mcpgateway.db import refresh_slugs_on_startup, get_local_session
 from mcpgateway.db import Tool as DbTool
 from mcpgateway.handlers.sampling import SamplingHandler
 from mcpgateway.middleware.http_auth_middleware import HttpAuthMiddleware
@@ -1155,7 +1155,7 @@ def get_db():
         ...         pass  # Expected - generator cleanup
         'Session'
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:

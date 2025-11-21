@@ -318,14 +318,14 @@ class PluginExecutor:
         try:
             # First-Party
             # pylint: disable=import-outside-toplevel
-            from mcpgateway.db import SessionLocal
+            from mcpgateway.db import get_local_session
             from mcpgateway.services.observability_service import current_trace_id, ObservabilityService
 
             # pylint: enable=import-outside-toplevel
 
             trace_id = current_trace_id.get()
             if trace_id:
-                db = SessionLocal()
+                db = get_local_session()
                 try:
                     service = ObservabilityService()
                     span_id = service.start_span(

@@ -11,9 +11,9 @@ user creation, authentication, password management, and security features.
 Examples:
     Basic usage (requires async context):
         from mcpgateway.services.email_auth_service import EmailAuthService
-        from mcpgateway.db import SessionLocal
+        from mcpgateway.db import get_local_session
 
-        with SessionLocal() as db:
+        with get_local_session() as db:
             service = EmailAuthService(db)
             # Use in async context:
             # user = await service.create_user("test@example.com", "password123")
@@ -100,8 +100,8 @@ class EmailAuthService:
         password_service (Argon2PasswordService): Password hashing service
 
     Examples:
-        >>> from mcpgateway.db import SessionLocal
-        >>> with SessionLocal() as db:
+        >>> from mcpgateway.db import get_local_session
+        >>> with get_local_session() as db:
         ...     service = EmailAuthService(db)
         ...     # Service is ready to use
     """

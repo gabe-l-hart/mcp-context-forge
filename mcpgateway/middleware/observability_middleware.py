@@ -27,7 +27,7 @@ from starlette.responses import Response
 
 # First-Party
 from mcpgateway.config import settings
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway.instrumentation.sqlalchemy import attach_trace_to_session
 from mcpgateway.services.observability_service import current_trace_id, ObservabilityService, parse_traceparent
 
@@ -105,7 +105,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
 
         try:
             # Create database session
-            db = SessionLocal()
+            db = get_local_session()
 
             # Start trace (use external trace_id if provided for distributed tracing)
             trace_id = self.service.start_trace(

@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 # First-Party
-from mcpgateway.db import Permissions, SessionLocal
+from mcpgateway.db import Permissions, get_local_session
 from mcpgateway.middleware.rbac import get_current_user_with_permissions, require_admin_permission, require_permission
 from mcpgateway.schemas import PermissionCheckRequest, PermissionCheckResponse, PermissionListResponse, RoleCreateRequest, RoleResponse, RoleUpdateRequest, UserRoleAssignRequest, UserRoleResponse
 from mcpgateway.services.permission_service import PermissionService
@@ -49,7 +49,7 @@ def get_db() -> Generator[Session, None, None]:
         >>> hasattr(db, 'close')
         True
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:

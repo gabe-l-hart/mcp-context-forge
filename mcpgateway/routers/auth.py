@@ -18,7 +18,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 # First-Party
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway.routers.email_auth import create_access_token, get_client_ip, get_user_agent
 from mcpgateway.schemas import AuthenticationResponse, EmailUserResponse
 from mcpgateway.services.email_auth_service import EmailAuthService
@@ -44,7 +44,7 @@ def get_db():
         >>> hasattr(db, 'close')
         True
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:

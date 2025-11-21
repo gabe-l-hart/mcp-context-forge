@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 # First-Party
 from mcpgateway.auth import get_current_user
 from mcpgateway.config import settings
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway.services.permission_service import PermissionService
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ def get_db() -> Generator[Session, None, None]:
         >>> hasattr(db, 'query')
         True
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:

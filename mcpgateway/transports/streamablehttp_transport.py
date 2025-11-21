@@ -55,7 +55,7 @@ from starlette.types import Receive, Scope, Send
 # First-Party
 from mcpgateway.common.models import LogLevel
 from mcpgateway.config import settings
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 from mcpgateway.services.completion_service import CompletionService
 from mcpgateway.services.logging_service import LoggingService
 from mcpgateway.services.prompt_service import PromptService
@@ -321,7 +321,7 @@ async def get_db() -> AsyncGenerator[Session, Any]:
     Asynchronous context manager for database sessions.
 
     Yields:
-        A database session instance from SessionLocal.
+        A database session instance from get_local_session.
         Ensures the session is closed after use.
 
     Examples:
@@ -334,7 +334,7 @@ async def get_db() -> AsyncGenerator[Session, Any]:
         >>> result
         True
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:

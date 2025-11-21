@@ -50,13 +50,13 @@ def _write_span_to_db(span_data: dict) -> None:
         # Import here to avoid circular imports
         # First-Party
         # pylint: disable=import-outside-toplevel
-        from mcpgateway.db import ObservabilitySpan, SessionLocal
+        from mcpgateway.db import ObservabilitySpan, get_local_session
         from mcpgateway.services.observability_service import ObservabilityService
 
         # pylint: enable=import-outside-toplevel
 
         service = ObservabilityService()
-        db = SessionLocal()
+        db = get_local_session()
         try:
             span_id = service.start_span(
                 db=db,
@@ -306,8 +306,8 @@ def attach_trace_to_session(session: Any, trace_id: str) -> None:
         trace_id: Trace ID to attach
 
     Examples:
-        >>> from mcpgateway.db import SessionLocal  # doctest: +SKIP
-        >>> db = SessionLocal()  # doctest: +SKIP
+        >>> from mcpgateway.db import get_local_session  # doctest: +SKIP
+        >>> db = get_local_session()  # doctest: +SKIP
         >>> attach_trace_to_session(db, trace_id)  # doctest: +SKIP
     """
     if hasattr(session, "bind") and session.bind:

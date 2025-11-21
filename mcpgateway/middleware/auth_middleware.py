@@ -27,7 +27,7 @@ from starlette.responses import Response
 
 # First-Party
 from mcpgateway.auth import get_current_user
-from mcpgateway.db import SessionLocal
+from mcpgateway.db import get_local_session
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class AuthContextMiddleware(BaseHTTPMiddleware):
         # Try to authenticate and populate user context
         db = None
         try:
-            db = SessionLocal()
+            db = get_local_session()
             credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
             user = await get_current_user(credentials, db)
 

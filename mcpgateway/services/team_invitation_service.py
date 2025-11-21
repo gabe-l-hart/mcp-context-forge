@@ -10,8 +10,8 @@ for the multi-team collaboration system.
 
 Examples:
     >>> from mcpgateway.services.team_invitation_service import TeamInvitationService
-    >>> from mcpgateway.db import SessionLocal
-    >>> db = SessionLocal()
+    >>> from mcpgateway.db import get_local_session
+    >>> db = get_local_session()
     >>> service = TeamInvitationService(db)
     >>> # Service handles team invitation lifecycle
 """
@@ -45,8 +45,8 @@ class TeamInvitationService:
 
     Examples:
         >>> from mcpgateway.services.team_invitation_service import TeamInvitationService
-        >>> from mcpgateway.db import SessionLocal
-        >>> db = SessionLocal()
+        >>> from mcpgateway.db import get_local_session
+        >>> db = get_local_session()
         >>> service = TeamInvitationService(db)
         >>> service.db is not None
         True

@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 # First-Party
 from mcpgateway.auth import get_current_user
 from mcpgateway.config import settings
-from mcpgateway.db import EmailUser, SessionLocal
+from mcpgateway.db import EmailUser, get_local_session
 from mcpgateway.middleware.rbac import require_permission
 from mcpgateway.schemas import (
     AuthenticationResponse,
@@ -62,7 +62,7 @@ def get_db():
     Yields:
         Session: SQLAlchemy database session
     """
-    db = SessionLocal()
+    db = get_local_session()
     try:
         yield db
     finally:
