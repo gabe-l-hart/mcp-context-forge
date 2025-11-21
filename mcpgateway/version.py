@@ -70,7 +70,7 @@ from sqlalchemy import text
 # First-Party
 from mcpgateway import __version__
 from mcpgateway.config import settings
-from mcpgateway.db import engine
+from mcpgateway.db import get_engine
 from mcpgateway.utils.verify_credentials import require_auth
 
 # Optional runtime dependencies
@@ -335,7 +335,7 @@ def _database_version() -> tuple[str, bool]:
         >>> reachable
         False
     """
-    dialect = engine.dialect.name
+    dialect = get_engine().dialect.name
     stmts = {
         "sqlite": "SELECT sqlite_version();",
         "postgresql": "SELECT current_setting('server_version');",
@@ -343,7 +343,7 @@ def _database_version() -> tuple[str, bool]:
     }
     stmt = stmts.get(dialect, "XXSELECT version();XX")
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             ver = conn.execute(text(stmt)).scalar()
             return str(ver), True
     except Exception as exc:
@@ -533,7 +533,7 @@ def _build_payload(
             "os": f"{platform.system()} {platform.release()} ({platform.machine()})",
         },
         "database": {
-            "dialect": engine.dialect.name,
+            "dialect": get_engine().dialect.name,
             "url": _sanitize_url(settings.database_url),
             "reachable": db_ok,
             "server_version": db_ver,

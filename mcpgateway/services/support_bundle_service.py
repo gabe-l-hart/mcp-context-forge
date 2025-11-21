@@ -51,7 +51,7 @@ from pydantic import BaseModel, Field
 # First-Party
 from mcpgateway import __version__
 from mcpgateway.config import settings
-from mcpgateway.db import engine
+from mcpgateway.db import get_engine
 
 
 class SupportBundleConfig(BaseModel):
@@ -236,7 +236,7 @@ class SupportBundleService:
                 "compiler": platform.python_compiler(),
             },
             "database": {
-                "dialect": engine.dialect.name,
+                "dialect": get_engine().dialect.name,
                 "url": self._sanitize_url(settings.database_url),
             },
         }
