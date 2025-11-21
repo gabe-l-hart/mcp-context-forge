@@ -98,10 +98,6 @@ logging_service = LoggingService()
 logger = logging_service.get_logger(__name__)
 
 
-GW_FAILURE_THRESHOLD = settings.unhealthy_threshold
-GW_HEALTH_CHECK_INTERVAL = settings.health_check_interval
-
-
 class GatewayError(Exception):
     """Base class for gateway-related errors.
 
@@ -287,7 +283,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
             0
             >>> isinstance(service._http_client, ResilientHttpClient)
             True
-            >>> service._health_check_interval == GW_HEALTH_CHECK_INTERVAL
+            >>> service._health_check_interval == settings.health_check_interval
             True
             >>> service._health_check_task is None
             True
@@ -314,7 +310,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
         """
         self._event_subscribers: List[asyncio.Queue] = []
         self._http_client = ResilientHttpClient(client_args={"timeout": settings.federation_timeout, "verify": not settings.skip_ssl_verify})
-        self._health_check_interval = GW_HEALTH_CHECK_INTERVAL
+        self._health_check_interval = settings.health_check_interval
         self._health_check_task: Optional[asyncio.Task] = None
         self._active_gateways: Set[str] = set()  # Track active gateway URLs
         self._stream_response = None
@@ -2056,7 +2052,7 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
             >>> service._gateway_failure_counts.get('gw1', 0) == old_count
             True
         """
-        if GW_FAILURE_THRESHOLD == -1:
+        if settings.unhealthy_threshold == -1:
             return  # Gateway failure action disabled
 
         if not gateway.enabled:
@@ -2070,8 +2066,8 @@ class GatewayService:  # pylint: disable=too-many-instance-attributes
 
         logger.warning(f"Gateway {gateway.name} failed health check {count} time(s).")
 
-        if count >= GW_FAILURE_THRESHOLD:
-            logger.error(f"Gateway {gateway.name} failed {GW_FAILURE_THRESHOLD} times. Deactivating...")
+        if count >= settings.unhealthy_threshold:
+            logger.error(f"Gateway {gateway.name} failed {settings.unhealthy_threshold} times. Deactivating...")
             with cast(Any, get_local_session)() as db:
                 await self.toggle_gateway_status(db, gateway.id, activate=True, reachable=False, only_update_reachable=True)
                 self._gateway_failure_counts[gateway.id] = 0  # Reset after deactivation

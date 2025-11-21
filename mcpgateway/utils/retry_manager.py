@@ -230,10 +230,10 @@ class ResilientHttpClient:
 
     def __init__(
         self,
-        max_retries: int = settings.retry_max_attempts,
-        base_backoff: float = settings.retry_base_delay,
-        max_delay: float = settings.retry_max_delay,
-        jitter_max: float = settings.retry_jitter_max,
+        max_retries: Optional[int] = None,  # settings.retry_max_attempts
+        base_backoff: Optional[float] = None,  # settings.retry_base_delay
+        max_delay: Optional[float] = None,  # settings.retry_max_delay
+        jitter_max: Optional[float] = None,  # settings.retry_jitter_max
         client_args: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the ResilientHttpClient with configurable retry behavior.
@@ -265,10 +265,10 @@ class ResilientHttpClient:
             >>> client.client_args
             {}
         """
-        self.max_retries = max_retries
-        self.base_backoff = base_backoff
-        self.max_delay = max_delay
-        self.jitter_max = jitter_max
+        self.max_retries = max_retries if max_retries is not None else settings.retry_max_attempts
+        self.base_backoff = base_backoff if base_backoff is not None else settings.retry_base_delay
+        self.max_delay = max_delay if max_delay is not None else settings.retry_max_delay
+        self.jitter_max = jitter_max if jitter_max is not None else settings.retry_jitter_max
         self.client_args = client_args or {}
         self.client = httpx.AsyncClient(**self.client_args)
 
