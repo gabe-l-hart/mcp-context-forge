@@ -31,12 +31,6 @@ Examples:
     True
     >>> isinstance(StreamableHTTPSessionManager, type)
     True
-    >>> from mcpgateway.translate import KEEP_ALIVE_INTERVAL
-    >>> KEEP_ALIVE_INTERVAL > 0
-    True
-    >>> from mcpgateway.translate import DEFAULT_KEEPALIVE_ENABLED
-    >>> isinstance(DEFAULT_KEEPALIVE_ENABLED, bool)
-    True
 
     Test Starlette imports:
 
@@ -124,6 +118,7 @@ import os
 import shlex
 import signal
 import sys
+from functools import lru_cache
 from typing import Any, AsyncIterator, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlencode
 import uuid
@@ -158,20 +153,26 @@ logging_service = LoggingService()
 LOGGER = logging_service.get_logger("mcpgateway.translate")
 CONTENT_TYPE = os.getenv("FORGE_CONTENT_TYPE", "application/json")
 # headers = {"Content-Type": CONTENT_TYPE}
-# Import settings for default keepalive interval
-try:
-    # First-Party
-    from mcpgateway.config import settings
-
-    DEFAULT_KEEP_ALIVE_INTERVAL = settings.sse_keepalive_interval
-    DEFAULT_KEEPALIVE_ENABLED = settings.sse_keepalive_enabled
-except ImportError:
-    # Fallback if config not available
-    DEFAULT_KEEP_ALIVE_INTERVAL = 30
-    DEFAULT_KEEPALIVE_ENABLED = True
-
-KEEP_ALIVE_INTERVAL = DEFAULT_KEEP_ALIVE_INTERVAL  # seconds - from config or fallback to 30
 __all__ = ["main"]  # for console-script entry-point
+
+
+@lru_cache
+def _get_keep_alive_interval() -> Tuple[bool, float]:
+    """Lazily deduce the keep alive interval and enablement flag"""
+
+    # Import settings for default keepalive interval
+    try:
+        # First-Party
+        from mcpgateway.config import settings
+
+        default_keep_alive_interval = settings.sse_keepalive_interval
+        default_keepalive_enabled = settings.sse_keepalive_enabled
+    except ImportError:
+        # Fallback if config not available
+        default_keep_alive_interval = 30
+        default_keepalive_enabled = True
+
+    return default_keepalive_enabled, default_keep_alive_interval
 
 
 # ---------------------------------------------------------------------------#
@@ -640,7 +641,7 @@ class SSEEvent:
 def _build_fastapi(
     pubsub: _PubSub,
     stdio: StdIOEndpoint,
-    keep_alive: float = KEEP_ALIVE_INTERVAL,
+    keep_alive: Optional[float] = None,
     sse_path: str = "/sse",
     message_path: str = "/message",
     cors_origins: Optional[List[str]] = None,
@@ -654,7 +655,7 @@ def _build_fastapi(
     Args:
         pubsub: The publish/subscribe system for message routing.
         stdio: The stdio endpoint for subprocess communication.
-        keep_alive: Interval in seconds for keepalive messages. Defaults to KEEP_ALIVE_INTERVAL.
+        keep_alive: Interval in seconds for keepalive messages. Defaults to settings.sse_keepalive_interval.
         sse_path: Path for the SSE endpoint. Defaults to "/sse".
         message_path: Path for the message endpoint. Defaults to "/message".
         cors_origins: Optional list of CORS allowed origins.
@@ -689,6 +690,9 @@ def _build_fastapi(
         >>> any("CORSMiddleware" in str(m) for m in app3.user_middleware)
         True
     """
+    keep_alive_enabled, default_keep_alive_interval = _get_keep_alive_interval()
+    keep_alive = keep_alive if keep_alive is not None else default_keep_alive_interval
+
     app = FastAPI()
 
     # Add CORS middleware if origins specified
@@ -765,7 +769,7 @@ def _build_fastapi(
             }
 
             # 2️⃣ Immediate keepalive so clients know the stream is alive (if enabled in config)
-            if DEFAULT_KEEPALIVE_ENABLED:
+            if keep_alive_enabled:
                 yield {"event": "keepalive", "data": "{}", "retry": keep_alive * 1000}
 
             try:
@@ -774,11 +778,11 @@ def _build_fastapi(
                         break
 
                     try:
-                        timeout = keep_alive if DEFAULT_KEEPALIVE_ENABLED else None
+                        timeout = keep_alive if keep_alive_enabled else None
                         msg = await asyncio.wait_for(queue.get(), timeout)
                         yield {"event": "message", "data": msg.rstrip()}
                     except asyncio.TimeoutError:
-                        if DEFAULT_KEEPALIVE_ENABLED:
+                        if keep_alive_enabled:
                             yield {
                                 "event": "keepalive",
                                 "data": "{}",
@@ -958,6 +962,8 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         >>> args.stdioCommand is None
         True
     """
+    _, keep_alive_interval = _get_keep_alive_interval()
+
     p = argparse.ArgumentParser(
         prog="mcpgateway.translate",
         description="Bridges between different MCP transport protocols: stdio, SSE, and streamable HTTP.",
@@ -1012,8 +1018,8 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     p.add_argument(
         "--keepAlive",
         type=int,
-        default=KEEP_ALIVE_INTERVAL,
-        help=f"Keep-alive interval in seconds (default: {KEEP_ALIVE_INTERVAL})",
+        default=keep_alive_interval,
+        help=f"Keep-alive interval in seconds (default: {keep_alive_interval})",
     )
 
     # For SSE to stdio mode
@@ -1051,7 +1057,7 @@ async def _run_stdio_to_sse(
     host: str = "127.0.0.1",
     sse_path: str = "/sse",
     message_path: str = "/message",
-    keep_alive: float = KEEP_ALIVE_INTERVAL,
+    keep_alive: Optional[float] = None,
     header_mappings: Optional[Dict[str, str]] = None,
 ) -> None:
     """Run stdio to SSE bridge.
@@ -1067,7 +1073,7 @@ async def _run_stdio_to_sse(
         host: The host interface to bind to. Defaults to "127.0.0.1" for security.
         sse_path: Path for the SSE endpoint. Defaults to "/sse".
         message_path: Path for the message endpoint. Defaults to "/message".
-        keep_alive: Keep-alive interval in seconds. Defaults to KEEP_ALIVE_INTERVAL.
+        keep_alive: Keep-alive interval in seconds. Defaults to settings.sse_keepalive_interval.
         header_mappings: Optional mapping of HTTP headers to environment variables.
 
     Examples:
@@ -1774,7 +1780,7 @@ async def _run_multi_protocol_server(  # pylint: disable=too-many-positional-arg
     expose_streamable_http: bool = False,
     sse_path: str = "/sse",
     message_path: str = "/message",
-    keep_alive: float = KEEP_ALIVE_INTERVAL,
+    keep_alive: Optional[float] = None,
     stateless: bool = False,
     json_response: bool = False,
     header_mappings: Optional[Dict[str, str]] = None,
@@ -1791,13 +1797,15 @@ async def _run_multi_protocol_server(  # pylint: disable=too-many-positional-arg
         expose_streamable_http: Whether to expose via streamable HTTP protocol.
         sse_path: Path for SSE endpoint. Defaults to "/sse".
         message_path: Path for message endpoint. Defaults to "/message".
-        keep_alive: Keep-alive interval for SSE. Defaults to KEEP_ALIVE_INTERVAL.
+        keep_alive: Keep-alive interval for SSE. Defaults to settings.sse_keepalive_interval.
         stateless: Whether to use stateless mode for streamable HTTP.
         json_response: Whether to return JSON responses for streamable HTTP.
         header_mappings: Optional mapping of HTTP headers to environment variables.
     """
     LOGGER.info(f"Starting multi-protocol server for command: {cmd}")
     LOGGER.info(f"Protocols: SSE={expose_sse}, StreamableHTTP={expose_streamable_http}")
+    keep_alive_enabled, default_keep_alive_interval = _get_keep_alive_interval()
+    keep_alive = keep_alive if keep_alive is not None else default_keep_alive_interval
 
     # Create a shared pubsub whenever either protocol needs stdout observations
     pubsub = _PubSub() if (expose_sse or expose_streamable_http) else None
@@ -1866,7 +1874,7 @@ async def _run_multi_protocol_server(  # pylint: disable=too-many-positional-arg
                     "retry": int(keep_alive * 1000),
                 }
 
-                if DEFAULT_KEEPALIVE_ENABLED:
+                if keep_alive_enabled:
                     yield {"event": "keepalive", "data": "{}", "retry": keep_alive * 1000}
 
                 try:
@@ -1875,11 +1883,11 @@ async def _run_multi_protocol_server(  # pylint: disable=too-many-positional-arg
                             break
 
                         try:
-                            timeout = keep_alive if DEFAULT_KEEPALIVE_ENABLED else None
+                            timeout = keep_alive if keep_alive_enabled else None
                             msg = await asyncio.wait_for(queue.get(), timeout)
                             yield {"event": "message", "data": msg.rstrip()}
                         except asyncio.TimeoutError:
-                            if DEFAULT_KEEPALIVE_ENABLED:
+                            if keep_alive_enabled:
                                 yield {
                                     "event": "keepalive",
                                     "data": "{}",
@@ -2244,7 +2252,7 @@ def start_streamable_http_client(url: str, bearer_token: Optional[str] = None, t
 
 
 def start_stdio(
-    cmd: str, port: int, log_level: str, cors: Optional[List[str]], host: str = "127.0.0.1", sse_path: str = "/sse", message_path: str = "/message", keep_alive: float = KEEP_ALIVE_INTERVAL
+    cmd: str, port: int, log_level: str, cors: Optional[List[str]], host: str = "127.0.0.1", sse_path: str = "/sse", message_path: str = "/message", keep_alive: Optional[float] = None
 ) -> None:
     """Start stdio bridge.
 
@@ -2258,17 +2266,12 @@ def start_stdio(
         host: The host interface to bind to. Defaults to "127.0.0.1".
         sse_path: Path for the SSE endpoint. Defaults to "/sse".
         message_path: Path for the message endpoint. Defaults to "/message".
-        keep_alive: Keep-alive interval in seconds. Defaults to KEEP_ALIVE_INTERVAL.
+        keep_alive: Keep-alive interval in seconds. Defaults to settings.sse_keepalive_interval.
 
     Returns:
         None: This function does not return a value.
 
     Examples:
-        >>> # Test parameter validation
-        >>> isinstance(KEEP_ALIVE_INTERVAL, int)
-        True
-        >>> KEEP_ALIVE_INTERVAL > 0
-        True
         >>> start_stdio("uvx mcp-server-git", 9000, "info", None)  # doctest: +SKIP
     """
     return asyncio.run(_run_stdio_to_sse(cmd, port, log_level, cors, host, sse_path, message_path, keep_alive))
@@ -2381,7 +2384,7 @@ def main(argv: Optional[Sequence[str]] | None = None) -> None:
                     expose_streamable_http=expose_streamable_http,
                     sse_path=getattr(args, "ssePath", "/sse"),
                     message_path=getattr(args, "messagePath", "/message"),
-                    keep_alive=getattr(args, "keepAlive", KEEP_ALIVE_INTERVAL),
+                    keep_alive=getattr(args, "keepAlive", None),
                     stateless=getattr(args, "stateless", False),
                     json_response=getattr(args, "jsonResponse", False),
                     header_mappings=header_mappings,
